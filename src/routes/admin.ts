@@ -95,7 +95,7 @@ admin.get("/stats", async (c) => {
 
 // log บอท (ดู dead bot / error)
 admin.get("/bot-logs", async (c) => {
-  const q = z.object({ onlyErrors: z.coerce.boolean().default(false), take: z.coerce.number().int().min(1).max(500).default(100) }).parse(c.req.query());
+  const q = z.object({ onlyErrors: z.enum(["true", "false"]).default("false").transform((v) => v === "true"), take: z.coerce.number().int().min(1).max(500).default(100) }).parse(c.req.query());
   return c.json(await db.botLog.findMany({ where: q.onlyErrors ? { ok: false } : undefined, orderBy: { createdAt: "desc" }, take: q.take }));
 });
 
