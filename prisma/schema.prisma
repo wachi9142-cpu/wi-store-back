@@ -22,6 +22,7 @@ model User {
   updatedAt   DateTime @updatedAt
 
   orders      Order[]
+  coupons     Coupon[]
 }
 
 model Product {
@@ -126,6 +127,7 @@ model Order {
   rejectedAt      DateTime?
   rejectReason    String?
   stockDeducted   Boolean      @default(false)
+  coupon          Coupon?
   note            String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -142,4 +144,43 @@ model OrderItem {
   name      String  // snapshot ชื่อ ณ ตอนสั่ง
   unitPrice Int
   qty       Int
+}
+
+/// โปรสะสม: ในช่วงวันที่กำหนด ลูกค้าซื้อครบ targetQty (ชิ้น) ได้คูปองมูลค่า rewardAmount
+model Promotion {
+  id           String   @id @default(cuid())
+  name         String
+  startDate    String   // YYYY-MM-DD
+  endDate      String   // YYYY-MM-DD (รวมวันนี้)
+  targetQty    Int      // เช่น 200
+  rewardAmount Int      // บาท เช่น 20
+  productId    String?  // null = นับทุกสินค้า
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  coupons Coupon[]
+}
+
+enum CouponStatus {
+  ACTIVE
+  USED
+}
+
+model Coupon {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  promotionId String
+  promotion   Promotion    @relation(fields: [promotionId], references: [id])
+  amount      Int
+  status      CouponStatus @default(ACTIVE)
+  usedAt      DateTime?
+  usedOrderId String?      @unique
+  usedOrder   Order?       @relation(fields: [usedOrderId], references: [id])
+  usedNote    String?      // เช่น "หน้าร้าน"
+  createdAt   DateTime     @default(now())
+
+  @@index([userId, status])
 }
