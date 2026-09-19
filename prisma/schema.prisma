@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model User {
+  id          String   @id @default(cuid())
+  lineUserId  String   @unique
+  displayName String?
+  phone       String?
+  role        Role     @default(CUSTOMER)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders      Order[]
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  price     Int      // บาท
+  unit      String   @default("ขวด")
+  stock     Int      @default(0)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockLogs StockLog[]
+}
+
+enum StockReason {
+  ADD      // แม่เพิ่มสต็อกผ่าน LINE
+  SET      // แม่ตั้งค่าตรง ๆ
+  ORDER    // ตัดตอนอนุมัติออเดอร์
+  REFUND   // คืนตอนยกเลิกออเดอร์ที่อนุมัติแล้ว
+  WEB      // แก้จากหน้าเว็บ
+}
+
+model StockLog {
+  id        String      @id @default(cuid())
+  productId String
+  product   Product     @relation(fields: [productId], references: [id])
+  delta     Int
+  after     Int         // ยอดคงเหลือหลังทำรายการ
+  reason    StockReason
+  note      String?
+  byUserId  String?
+  createdAt DateTime    @default(now())
+
+  @@index([productId, createdAt])
+}
+
+/// ตั้งค่าร้าน (แถวเดียว id = "main") — แก้จากหน้าเว็บ
+model Setting {
+  id            String  @id @default("main")
+  shopName      String  @default("ร้านน้ำเต้าหู้")
+  promptpayId   String? // เบอร์โทร / เลขบัตรประชาชน สำหรับสร้าง QR
+  shopLat       Float?
+  shopLng       Float?
+  /// ช่วงค่าส่ง เรียงจากใกล้ไปไกล เช่น [{"maxKm":3,"fee":30},{"maxKm":10,"fee":100}]
+  deliveryTiers Json    @default("[]")
+  isOpen        Boolean @default(true)
+  closedMessage String  @default("วันนี้ร้านปิดชั่วคราวค่ะ ขออภัยในความไม่สะดวก 🙏")
+  updatedAt     DateTime @updatedAt
+}
+
+enum OrderStatus {
+  DRAFT            // กำลังกรอกข้อมูล (ถามเวลารับ/วิธีรับ)
+  PENDING_PAYMENT  // รอลูกค้าโอน+ส่งสลิป
+  PENDING_CONFIRM  // ส่งสลิปแล้ว รอแม่ยืนยัน
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+enum DraftStep {
+  ASK_TIME
+  ASK_FULFILLMENT
+  ASK_LOCATION
+}
+
+enum Fulfillment {
+  PICKUP
+  DELIVERY
+}
+
+enum PickupSlot {
+  MORNING
+  AFTERNOON
+  EVENING
+}
+
+model Order {
+  id              String       @id @default(cuid())
+  orderNo         Int          @unique @default(autoincrement())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  status          OrderStatus  @default(DRAFT)
+  draftStep       DraftStep?
+  items           OrderItem[]
+  subtotal        Int          @default(0)
+  deliveryFee     Int          @default(0)
+  discount        Int          @default(0)
+  total           Int          @default(0)
+  fulfillment     Fulfillment  @default(PICKUP)
+  pickupDate      String?      // YYYY-MM-DD (เวลาไทย)
+  pickupSlot      PickupSlot?
+  deliveryLat     Float?
+  deliveryLng     Float?
+  deliveryAddress String?
+  distanceKm      Float?
+  slipMessageId   String?
+  slipPath        String?
+  slipAt          DateTime?
+  confirmedAt     DateTime?
+  rejectedAt      DateTime?
+  rejectReason    String?
+  stockDeducted   Boolean      @default(false)
+  note            String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  name      String  // snapshot ชื่อ ณ ตอนสั่ง
+  unitPrice Int
+  qty       Int
+}
