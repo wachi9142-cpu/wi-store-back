@@ -14,6 +14,7 @@ import {
   setPickupTime,
 } from "../../services/order";
 import { getSetting } from "../../services/setting";
+import { activeCoupons } from "../../services/promotion";
 import { reply, replyText } from "../client";
 import { image, qrLocation, qrText, text } from "../messages";
 
@@ -162,13 +163,21 @@ async function sendPaymentRequest(draft: OrderWithItems, replyToken: string) {
   const setting = await getSetting();
   const msgs = [text(orderSummaryText(o))];
 
+  // มีคูปอง → เสนอปุ่มใช้คูปองก่อนโอน
+  const coupons = await activeCoupons(o.userId);
+  const couponQr = coupons.length ? qrText(coupons.slice(0, 5).map((c) => `ใช้คูปอง ${c.code}`)) : undefined;
+  const couponHint = coupons.length ? `\n🎟 คุณมีคูปอง ${coupons.length} ใบ กดปุ่มด้านล่างเพื่อใช้ก่อนโอนได้ค่ะ` : "";
+
   if (setting.promptpayId) {
     msgs.push(
       image(`${env.PUBLIC_BASE_URL}/api/orders/${o.id}/qr.png`),
-      text(`สแกน QR พร้อมเพย์ด้านบนเพื่อโอน ${o.total} บาท แล้วส่งรูปสลิปมาในแชทนี้ได้เลยค่ะ 🙏\nเมื่อแม่ค้าตรวจสอบแล้วจะแจ้งยืนยันอีกครั้งนะคะ`),
+      text(
+        `สแกน QR พร้อมเพย์ด้านบนเพื่อโอน ${o.total} บาท แล้วส่งรูปสลิปมาในแชทนี้ได้เลยค่ะ 🙏\nเมื่อแม่ค้าตรวจสอบแล้วจะแจ้งยืนยันอีกครั้งนะคะ${couponHint}`,
+        couponQr,
+      ),
     );
   } else {
-    msgs.push(text(`ยอดชำระ ${o.total} บาท — โอนแล้วส่งรูปสลิปมาในแชทนี้ได้เลยค่ะ 🙏`));
+    msgs.push(text(`ยอดชำระ ${o.total} บาท — โอนแล้วส่งรูปสลิปมาในแชทนี้ได้เลยค่ะ 🙏${couponHint}`, couponQr));
   }
   await reply(replyToken, msgs);
   return true;

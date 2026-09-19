@@ -8,6 +8,7 @@ import { handleAdminHelp } from "./flows/help";
 import { handleDraftLocation, handleDraftText, handleNewOrder } from "./flows/order";
 import { handleAdminOrder, handleSlipImage } from "./flows/confirm";
 import { handleAdminShop } from "./flows/shop";
+import { handleAdminCoupon, handleCustomerCoupon } from "./flows/coupon";
 import { getSetting } from "../services/setting";
 
 export async function handleEvent(ev: line.Event) {
@@ -57,8 +58,9 @@ export async function handleEvent(ev: line.Event) {
     if (await handleAdminHelp(text, replyToken)) return;
     if (await handleAdminOrder(user, text, replyToken)) return;
     if (await handleAdminShop(text, replyToken)) return;
+    if (await handleAdminCoupon(text, replyToken)) return;
     if (await handleAdminStock(user, text, replyToken)) return;
-    // TODO ข้อ 5.1: โปรโมชั่น
+
     await replyText(replyToken, "ไม่เข้าใจคำสั่งค่ะ พิมพ์ \"ช่วยเหลือ\" เพื่อดูคำสั่งทั้งหมด");
     return;
   }
@@ -70,8 +72,9 @@ export async function handleEvent(ev: line.Event) {
   }
 
   // ลูกค้า: ตอบขั้นตอน draft ก่อน (เลือกเวลา/วิธีรับ/ยกเลิก) แล้วค่อยมองเป็นออเดอร์ใหม่
+  if (await handleCustomerCoupon(user, text, replyToken)) return;
   if (await handleDraftText(user, text, replyToken)) return;
   if (await handleNewOrder(user, text, replyToken)) return;
 
-  await replyText(replyToken, "พิมพ์ \"เมนู\" เพื่อดูรายการ หรือสั่งได้เลย เช่น \"เก็กฮวย 2 ขวด\" ค่ะ");
+  await replyText(replyToken, "พิมพ์ \"เมนู\" เพื่อดูรายการ, \"คูปอง\" เพื่อดูโปร หรือสั่งได้เลย เช่น \"เก็กฮวย 2 ขวด\" ค่ะ");
 }

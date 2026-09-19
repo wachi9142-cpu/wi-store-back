@@ -5,6 +5,7 @@ import { webhook } from "./line/webhook";
 import { products } from "./routes/products";
 import { settings } from "./routes/settings";
 import { ordersPublic } from "./routes/orders";
+import { promotions } from "./routes/promotions";
 
 const app = new Hono();
 
@@ -14,6 +15,7 @@ app.route("/api/line", webhook);
 app.route("/api/products", products);
 app.route("/api/settings", settings);
 app.route("/api/orders", ordersPublic);
+app.route("/api/promotions", promotions);
 
 export default {
   port: env.PORT,

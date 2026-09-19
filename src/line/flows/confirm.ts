@@ -11,6 +11,7 @@ import {
 import { push, pushText, replyText } from "../client";
 import { image, qrText, text } from "../messages";
 import { orderSummaryText } from "./order";
+import { issueCouponsFor, releaseCouponOfOrder } from "../../services/promotion";
 
 // ---------- ฝั่งลูกค้า: ส่งรูปสลิป ----------
 
@@ -28,18 +29,25 @@ export async function handleSlipImage(user: User, messageId: string, replyToken:
     `ได้รับสลิปของออเดอร์ #${updated.orderNo} แล้วค่ะ ✅\nรอแม่ค้าตรวจสอบสักครู่นะคะ เมื่อยืนยันแล้วจะแจ้งให้ทราบทันทีค่ะ`,
   );
 
-  // แจ้งแม่ทุกคนที่เป็น ADMIN พร้อมรูปสลิป + ปุ่มยืนยัน/ปฏิเสธ
+  await notifyAdminsPendingOrder(updated, true);
+  return true;
+}
+
+type OrderForAdmin = Parameters<typeof orderSummaryText>[0] & { user: { displayName: string | null; phone: string | null } };
+
+/** แจ้งแม่ทุกคนที่เป็น ADMIN ว่ามีออเดอร์รอยืนยัน (แนบรูปสลิปถ้ามี) + ปุ่มยืนยัน/ปฏิเสธ */
+export async function notifyAdminsPendingOrder(o: OrderForAdmin, withSlip: boolean) {
   const admins = await listAdmins();
-  const slipUrl = `${env.PUBLIC_BASE_URL}/api/orders/${updated.id}/slip.jpg`;
-  const customer = `${updated.user.displayName ?? "ลูกค้า"} (${updated.user.phone ?? "-"})`;
+  const customer = `${o.user.displayName ?? "ลูกค้า"} (${o.user.phone ?? "-"})`;
+  const head = withSlip ? "🔔 ออเดอร์ใหม่รอตรวจสลิป" : "🔔 ออเดอร์ใหม่ (ใช้คูปองครบ ยอด 0 บาท ไม่มีสลิป)";
+  const prompt = withSlip ? "ตรวจสอบยอดโอนแล้วกดยืนยันได้เลยค่ะ" : "กดยืนยันเพื่อรับออเดอร์ได้เลยค่ะ";
   for (const admin of admins) {
     await push(admin.lineUserId, [
-      text(`🔔 ออเดอร์ใหม่รอตรวจสลิป\nลูกค้า: ${customer}\n${orderSummaryText(updated)}`),
-      image(slipUrl),
-      text("ตรวจสอบยอดโอนแล้วกดยืนยันได้เลยค่ะ", qrText([`ยืนยัน #${updated.orderNo}`, `ปฏิเสธ #${updated.orderNo}`])),
+      text(`${head}\nลูกค้า: ${customer}\n${orderSummaryText(o)}`),
+      ...(withSlip ? [image(`${env.PUBLIC_BASE_URL}/api/orders/${o.id}/slip.jpg`)] : []),
+      text(prompt, qrText([`ยืนยัน #${o.orderNo}`, `ปฏิเสธ #${o.orderNo}`])),
     ]);
   }
-  return true;
 }
 
 // ---------- ฝั่งแม่: ยืนยัน / ปฏิเสธ / ดูรายการรอ ----------
@@ -79,6 +87,13 @@ export async function handleAdminOrder(user: User, textIn: string, replyToken: s
     const o = r.order!;
     await replyText(replyToken, `✅ ยืนยันออเดอร์ #${o.orderNo} แล้ว${o.stockDeducted ? " (ตัดสต็อกแล้ว)" : " (ไม่ตัดสต็อก)"}`);
     await pushText(o.user.lineUserId, `✅ แม่ค้ายืนยันออเดอร์ #${o.orderNo} แล้วค่ะ\n${orderSummaryText(o)}\n\nขอบคุณที่อุดหนุนนะคะ 🌿`);
+    // สะสมยอดโปร → ออกคูปองถ้าครบเป้า
+    for (const c of await issueCouponsFor(o.userId)) {
+      await pushText(
+        o.user.lineUserId,
+        `🎉 ยินดีด้วยค่ะ! สะสมครบตามโปร "${c.promoName}"\nได้รับคูปองส่วนลด ${c.amount} บาท โค้ด: ${c.code}\nพิมพ์ "คูปอง" เพื่อดูคูปองทั้งหมด`,
+      );
+    }
     return true;
   }
 
@@ -91,6 +106,7 @@ export async function handleAdminOrder(user: User, textIn: string, replyToken: s
       await replyText(replyToken, r.reason === "NOT_FOUND" ? `ไม่พบออเดอร์ #${orderNo} ค่ะ` : `ออเดอร์ #${orderNo} อยู่ในสถานะ ${r.status} ปฏิเสธไม่ได้ค่ะ`);
       return true;
     }
+    await releaseCouponOfOrder(r.order.id);
     await replyText(replyToken, `❌ ปฏิเสธออเดอร์ #${orderNo} แล้ว`);
     await pushText(
       r.order.user.lineUserId,
