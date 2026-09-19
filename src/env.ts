@@ -8,6 +8,8 @@ const schema = z.object({
   ADMIN_PHONE: z.string().min(9),
   // key สำหรับหน้าเว็บ admin เรียก REST API (header x-admin-key)
   ADMIN_API_KEY: z.string().min(8),
+  // รหัสผ่านเข้าหน้าเว็บ admin (คู่กับ ADMIN_PHONE)
+  ADMIN_PASSWORD: z.string().min(6),
   // ตั้ง 1 ตอน dev เพื่อไม่ยิงไป LINE จริง (แค่ log)
   LINE_DRY_RUN: z.coerce.boolean().default(false),
   // URL สาธารณะของ back (ใช้สร้างลิงก์รูป QR ให้ LINE ดึง)

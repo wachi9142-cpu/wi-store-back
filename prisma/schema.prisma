@@ -184,3 +184,17 @@ model Coupon {
 
   @@index([userId, status])
 }
+
+/// log การทำงานของบอท (ไว้ดูบนเว็บว่าบอทยังตอบไหม / error ล่าสุด)
+model BotLog {
+  id         String   @id @default(cuid())
+  eventType  String   // message:text, message:image, follow, ...
+  lineUserId String?
+  input      String?  // ข้อความที่ได้รับ (ตัดสั้น)
+  ok         Boolean  @default(true)
+  error      String?
+  durationMs Int?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
